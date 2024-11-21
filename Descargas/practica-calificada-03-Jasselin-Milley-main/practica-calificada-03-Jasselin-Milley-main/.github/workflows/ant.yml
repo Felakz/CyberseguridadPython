@@ -1,0 +1,185 @@
+name: Java CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout del repositorio
+      uses: actions/checkout@v4
+
+    - name: Configurar JDK 17+
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        check-latest: true
+
+    - name: Verificar paquetes requeridos
+      run: |
+        missing_packages=()
+        for pkg in Modelo Vista Controlador; do
+          if [ ! -d "src/$pkg" ]; then
+            missing_packages+=($pkg)
+          fi
+        done
+        if [ ${#missing_packages[@]} -eq 0 ]; then
+          echo "✅ Todos los paquetes requeridos están presentes."
+        else
+          echo "❌ Faltan los siguientes paquetes: ${missing_packages[@]}"
+          exit 1
+        fi
+
+    - name: Validar clase Publicacion
+      run: |
+        FILE="src/Modelo/Publicacion.java"
+
+        if [ -f "$FILE" ]; then
+          echo "✅ La clase Publicacion existe en el paquete Modelo."
+        else
+          echo "❌ La clase Publicacion no existe en el paquete Modelo."
+          exit 1
+        fi
+
+        ATTRIBUTES=("private.*int.*anio;"
+                    "private.*String.*nombreRevista;"
+                    "private.*String.*titulo;")
+        for ATTR in "${ATTRIBUTES[@]}"; do
+          if grep -qE "$ATTR" "$FILE"; then
+            echo "✅ Atributo encontrado: $ATTR"
+          else
+            echo "❌ Falta el atributo: $ATTR"
+            exit 1
+          fi
+        done
+
+        METHODS=("public.*int.*getAnio\\(\\)"
+                 "public.*String.*getNombreRevista\\(\\)"
+                 "public.*String.*getTitulo\\(\\)"
+                 "public.*void.*setAnio\\(int.*anio\\)"
+                 "public.*void.*setNombreRevista\\(String.*nombreRevista\\)"
+                 "public.*void.*setTitulo\\(String.*titulo\\)"
+                 "public.*String.*toString\\(\\)")
+        for METHOD in "${METHODS[@]}"; do
+          if grep -qE "$METHOD" "$FILE"; then
+            echo "✅ Método encontrado: $METHOD"
+          else
+            echo "❌ Falta el método: $METHOD"
+            exit 1
+          fi
+        done
+
+    - name: Validar clase Autor
+      run: |
+        FILE="src/Modelo/Autor.java"
+
+        if [ -f "$FILE" ]; then
+          echo "✅ La clase Autor existe en el paquete Modelo."
+        else
+          echo "❌ La clase Autor no existe en el paquete Modelo."
+          exit 1
+        fi
+
+        ATTRIBUTES=("private.*int.*cantidadPublicaciones;"
+                    "private.*String.*filiacion;"
+                    "private.*String.*lineaInvestigacion;"
+                    "private.*String.*nacionalidad;"
+                    "private.*String.*nombre;"
+                    "private.*Publicacion\\[\\].*publicaciones;")
+        for ATTR in "${ATTRIBUTES[@]}"; do
+          if grep -qE "$ATTR" "$FILE"; then
+            echo "✅ Atributo encontrado: $ATTR"
+          else
+            echo "❌ Falta el atributo: $ATTR"
+            exit 1
+          fi
+        done
+
+        METHODS=("public.*int.*getCantidadPublicaciones\\(\\)"
+                 "public.*String.*getFiliacion\\(\\)"
+                 "public.*String.*getLineaInvestigacion\\(\\)"
+                 "public.*String.*getNacionalidad\\(\\)"
+                 "public.*String.*getNombre\\(\\)"
+                 "public.*Publicacion\\[\\].*getPublicaciones\\(\\)"
+                 "public.*void.*setCantidadPublicaciones\\(int.*cantidadPublicaciones\\)"
+                 "public.*void.*setFiliacion\\(String.*filiacion\\)"
+                 "public.*void.*setLineaInvestigacion\\(String.*lineaInvestigacion\\)"
+                 "public.*void.*setNacionalidad\\(String.*nacionalidad\\)"
+                 "public.*void.*setNombre\\(String.*nombre\\)"
+                 "public.*void.*setPublicaciones\\(Publicacion\\[\\].*publicaciones\\)"
+                 "public.*String.*toString\\(\\)")
+        for METHOD in "${METHODS[@]}"; do
+          if grep -qE "$METHOD" "$FILE"; then
+            echo "✅ Método encontrado: $METHOD"
+          else
+            echo "❌ Falta el método: $METHOD"
+            exit 1
+          fi
+        done
+
+    - name: Validar clase GestorAutores
+      run: |
+        FILE="src/Controlador/GestorAutores.java"
+
+        if [ -f "$FILE" ]; then
+          echo "✅ La clase GestorAutores existe en el paquete Controlador."
+        else
+          echo "❌ La clase GestorAutores no existe en el paquete Controlador."
+          exit 1
+        fi
+
+        ATTRIBUTES=("private.*static.*final.*int.*CANTIDAD_MAXIMA_AUTORES.*=.*10;"
+                    "private.*Autor\\[\\].*Autores;"
+                    "private.*int.*contadorAutores;")
+        for ATTR in "${ATTRIBUTES[@]}"; do
+          if grep -qE "$ATTR" "$FILE"; then
+            echo "✅ Atributo encontrado: $ATTR"
+          else
+            echo "❌ Falta el atributo: $ATTR"
+            exit 1
+          fi
+        done
+
+        METHODS=("public.*Autor.*crearAutor\\(String.*filiacion,.*String.*lineaInvestigacion,.*String.*nacionalidad,.*String.*nombre,.*Publicacion\\[\\].*publicaciones\\)"
+                 "public.*void.*imprimirAutores\\(\\)")
+        for METHOD in "${METHODS[@]}"; do
+          if grep -qE "$METHOD" "$FILE"; then
+            echo "✅ Método encontrado: $METHOD"
+          else
+            echo "❌ Falta el método: $METHOD"
+            exit 1
+          fi
+        done
+
+    - name: Validar clases TestAutores y RegistroAutores en Vista
+      run: |
+        CLASSES=("TestAutores" "RegistroAutores")
+        for CLASS in "${CLASSES[@]}"; do
+          FILE="src/Vista/${CLASS}.java"
+          
+          # Verificar que el archivo existe
+          if [ -f "$FILE" ]; then
+            echo "✅ La clase $CLASS existe en el paquete Vista."
+          else
+            echo "❌ La clase $CLASS no existe en el paquete Vista."
+            exit 1
+          fi
+
+          # Verificar que tiene un método main
+          if grep -qE "public.*static.*void.*main\\(String\\[\\].*args\\)" "$FILE"; then
+            echo "✅ La clase $CLASS tiene un método main."
+          else
+            echo "❌ La clase $CLASS no tiene un método main."
+            exit 1
+          fi
+        done
+
+    - name: Construir con Ant
+      run: ant -noinput -buildfile build.xml
