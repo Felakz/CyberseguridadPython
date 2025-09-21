@@ -1,0 +1,5 @@
+deny_ports: [21, 23]   # FTP/Telnet prohibidos
+min_versions:
+  ssh: "OpenSSH_8.0"   # ejemplo de versión mínima aceptable
+tls:
+  forbid_protocols: ["SSLv3", "TLS1.0", "TLS1.1"]
