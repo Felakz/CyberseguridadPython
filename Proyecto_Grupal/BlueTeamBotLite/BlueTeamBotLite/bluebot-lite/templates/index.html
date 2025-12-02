@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - BlueTeamBot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-shield-check text-primary"></i> Dashboard de Seguridad
+        </h1>
+    </div>
+</div>
+
+<!-- Tarjetas de resumen -->
+<div class="row" id="statsCards">
+    <div class="col-md-3 mb-4">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-list-check"></i> Total Escaneos</h5>
+                <h2 class="display-4" id="totalScans">-</h2>
+                <p class="card-text">Histórico completo</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-exclamation-triangle"></i> Total Hallazgos</h5>
+                <h2 class="display-4" id="totalFindings">-</h2>
+                <p class="card-text">Acumulado</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card text-white bg-danger">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-exclamation-octagon"></i> Severidad HIGH</h5>
+                <h2 class="display-4" id="highCount">-</h2>
+                <p class="card-text">Críticos</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-clock-history"></i> Recientes (7d)</h5>
+                <h2 class="display-4" id="recentScans">-</h2>
+                <p class="card-text">Última semana</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos -->
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="bi bi-graph-up"></i> Tendencias de Severidad (30 días)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="trendChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="bi bi-pie-chart"></i> Distribución Actual</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="pieChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Acciones rápidas -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5><i class="bi bi-lightning"></i> Acciones Rápidas</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2 d-md-flex">
+                    <a href="/estadisticas" class="btn btn-primary">
+                        <i class="bi bi-bar-chart"></i> Ver Estadísticas Detalladas
+                    </a>
+                    <a href="/tendencias" class="btn btn-info">
+                        <i class="bi bi-graph-up"></i> Analizar Tendencias
+                    </a>
+                    <a href="/comparar" class="btn btn-warning">
+                        <i class="bi bi-arrow-left-right"></i> Comparar Períodos
+                    </a>
+                    <a href="/scans" class="btn btn-success">
+                        <i class="bi bi-list-ul"></i> Ver Historial
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Cargar estadísticas
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('totalScans').textContent = data.total_scans;
+            document.getElementById('totalFindings').textContent = data.total_findings;
+            document.getElementById('highCount').textContent = data.severity_totals.HIGH;
+            document.getElementById('recentScans').textContent = data.recent_scans;
+        });
+    
+    // Cargar tendencias
+    fetch('/api/severity-trends?days=30')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [
+                        {
+                            label: 'HIGH',
+                            data: data.HIGH,
+                            borderColor: 'rgb(220, 53, 69)',
+                            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'MEDIUM',
+                            data: data.MEDIUM,
+                            borderColor: 'rgb(255, 193, 7)',
+                            backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'LOW',
+                            data: data.LOW,
+                            borderColor: 'rgb(25, 135, 84)',
+                            backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'top' }
+                    }
+                }
+            });
+        });
+    
+    // Gráfico de pastel
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('pieChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['HIGH', 'MEDIUM', 'LOW'],
+                    datasets: [{
+                        data: [
+                            data.severity_totals.HIGH,
+                            data.severity_totals.MEDIUM,
+                            data.severity_totals.LOW
+                        ],
+                        backgroundColor: [
+                            'rgb(220, 53, 69)',
+                            'rgb(255, 193, 7)',
+                            'rgb(25, 135, 84)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        });
+</script>
+{% endblock %}

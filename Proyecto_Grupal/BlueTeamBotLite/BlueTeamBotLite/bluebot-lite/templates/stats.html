@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Estadísticas - BlueTeamBot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-bar-chart text-primary"></i> Estadísticas Detalladas
+        </h1>
+    </div>
+</div>
+
+<div class="row" id="detailedStats">
+    <!-- Se llena dinámicamente -->
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('detailedStats');
+            container.innerHTML = `
+                <div class="col-12 mb-4">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5>Resumen General</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-striped">
+                                <tbody>
+                                    <tr>
+                                        <th>Total de Escaneos Realizados</th>
+                                        <td class="text-end"><span class="badge bg-info fs-5">${data.total_scans}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Total de Hallazgos Históricos</th>
+                                        <td class="text-end"><span class="badge bg-warning fs-5">${data.total_findings}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Escaneos Últimos 7 Días</th>
+                                        <td class="text-end"><span class="badge bg-success fs-5">${data.recent_scans}</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="card border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <h5><i class="bi bi-exclamation-octagon"></i> HIGH Severity</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <h1 class="display-1 text-danger">${data.severity_totals.HIGH}</h1>
+                            <p class="text-muted">Requieren atención inmediata</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="card border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <h5><i class="bi bi-exclamation-triangle"></i> MEDIUM Severity</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <h1 class="display-1 text-warning">${data.severity_totals.MEDIUM}</h1>
+                            <p class="text-muted">Planificar corrección</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="card border-success">
+                        <div class="card-header bg-success text-white">
+                            <h5><i class="bi bi-info-circle"></i> LOW Severity</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <h1 class="display-1 text-success">${data.severity_totals.LOW}</h1>
+                            <p class="text-muted">Monitorear</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+</script>
+{% endblock %}

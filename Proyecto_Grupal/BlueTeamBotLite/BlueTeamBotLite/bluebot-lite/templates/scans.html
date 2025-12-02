@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Historial - BlueTeamBot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-list-ul text-primary"></i> Historial de Escaneos
+        </h1>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <label for="daysFilter" class="form-label">Mostrar:</label>
+        <select id="daysFilter" class="form-select" onchange="loadScans()">
+            <option value="7">Últimos 7 días</option>
+            <option value="30" selected>Últimos 30 días</option>
+            <option value="60">Últimos 60 días</option>
+            <option value="90">Últimos 90 días</option>
+        </select>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="bi bi-clock-history"></i> Escaneos Realizados</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="scansTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Fecha/Hora</th>
+                                <th>Timestamp</th>
+                                <th>Total Hallazgos</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scansTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center">Cargando...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para detalles -->
+<div class="modal fade" id="findingsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalles del Escaneo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Se llena dinámicamente -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function loadScans() {
+        const days = document.getElementById('daysFilter').value;
+        
+        fetch(`/api/scans?days=${days}`)
+            .then(response => response.json())
+            .then(data => {
+                const tbody = document.getElementById('scansTableBody');
+                
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay escaneos en este período</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = data.map(scan => `
+                    <tr>
+                        <td><span class="badge bg-secondary">#${scan.id}</span></td>
+                        <td>${scan.created_at}</td>
+                        <td><code>${scan.timestamp}</code></td>
+                        <td><span class="badge bg-info">${scan.total_findings}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="viewFindings(${scan.id})">
+                                <i class="bi bi-eye"></i> Ver Detalles
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            });
+    }
+    
+    function viewFindings(scanId) {
+        fetch(`/api/scan/${scanId}/findings`)
+            .then(response => response.json())
+            .then(findings => {
+                const modalBody = document.getElementById('modalBody');
+                
+                if (findings.length === 0) {
+                    modalBody.innerHTML = '<p class="text-muted">No hay hallazgos en este escaneo</p>';
+                } else {
+                    modalBody.innerHTML = `
+                        <div class="table-responsive">
+                            <table class="table table-striped table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Host</th>
+                                        <th>Puerto</th>
+                                        <th>Servicio</th>
+                                        <th>Producto</th>
+                                        <th>Versión</th>
+                                        <th>Severidad</th>
+                                        <th>Razones</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${findings.map(f => `
+                                        <tr>
+                                            <td><code>${f.host}</code></td>
+                                            <td><span class="badge bg-dark">${f.port}</span></td>
+                                            <td>${f.service || '-'}</td>
+                                            <td>${f.product || '-'}</td>
+                                            <td>${f.version || '-'}</td>
+                                            <td>
+                                                <span class="badge bg-${f.severity === 'HIGH' ? 'danger' : (f.severity === 'MEDIUM' ? 'warning' : 'success')}">
+                                                    ${f.severity || '-'}
+                                                </span>
+                                            </td>
+                                            <td><small>${f.reasons.join(', ') || '-'}</small></td>
+                                            <td>
+                                                <span class="badge bg-${f.status === 'NEW' ? 'primary' : (f.status === 'CHANGED' ? 'warning' : 'secondary')}">
+                                                    ${f.status || '-'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+                
+                const modal = new bootstrap.Modal(document.getElementById('findingsModal'));
+                modal.show();
+            });
+    }
+    
+    // Cargar al inicio
+    loadScans();
+</script>
+{% endblock %}

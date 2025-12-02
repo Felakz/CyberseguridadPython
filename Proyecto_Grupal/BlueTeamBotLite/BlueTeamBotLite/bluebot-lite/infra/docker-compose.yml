@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  bluebot:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    container_name: bluebot-lite
+    volumes:
+      - ../config:/app/config:ro
+      - ../data:/app/data
+    network_mode: "host"         # para escanear tu red local
+    restart: unless-stopped

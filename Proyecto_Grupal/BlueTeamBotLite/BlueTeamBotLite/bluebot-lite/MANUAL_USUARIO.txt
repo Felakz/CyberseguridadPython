@@ -1,0 +1,674 @@
+================================================================================
+           BLUETEAMBOTLITE - MANUAL DE USUARIO COMPLETO
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+¿QUÉ ES BLUETEAMBOTLITE?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BlueTeamBotLite es una herramienta de CIBERSEGURIDAD DEFENSIVA que:
+
+✓ Escanea automáticamente tu red en busca de vulnerabilidades
+✓ Detecta puertos abiertos, servicios desactualizados y configuraciones inseguras
+✓ Genera reportes profesionales en PDF y CSV
+✓ Guarda histórico en base de datos para análisis temporal
+✓ Compara períodos de tiempo para ver mejoras o nuevos problemas
+✓ Alerta sobre configuraciones prohibidas (puertos peligrosos, protocolos antiguos)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+¿CÓMO FUNCIONA? (ARQUITECTURA)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ESCANEO (scan.py)
+   ├─ Lee targets.yaml para saber qué IPs escanear
+   ├─ Usa NMAP para detectar:
+   │  ├─ Puertos abiertos (21, 22, 80, 443, etc.)
+   │  ├─ Servicios corriendo (SSH, HTTP, FTP, etc.)
+   │  └─ Versiones de software (OpenSSH 7.4, Apache 2.4, etc.)
+   └─ Guarda resultado en JSON bruto
+
+2. EVALUACIÓN DE REGLAS (rules.py)
+   ├─ Lee rules.yaml con políticas de seguridad
+   ├─ Compara cada hallazgo contra las reglas:
+   │  ├─ ¿Puerto prohibido? → SEVERIDAD HIGH
+   │  ├─ ¿Versión desactualizada? → SEVERIDAD MEDIUM
+   │  └─ ¿Protocolo inseguro (TLS 1.0)? → SEVERIDAD MEDIUM
+   └─ Marca cada hallazgo con razones específicas
+
+3. COMPARACIÓN (diff.py)
+   ├─ Compara contra el escaneo anterior (baseline.json)
+   ├─ Detecta:
+   │  ├─ NEW: Nuevos problemas que antes no existían
+   │  ├─ CHANGED: Problemas que empeoraron o mejoraron
+   │  └─ SAME: Problemas que siguen igual
+   └─ Solo reporta lo nuevo y cambiado
+
+4. BASE DE DATOS (db/models.py + queries.py)
+   ├─ Guarda TODOS los escaneos en SQLite (data/bluebot.db)
+   ├─ Permite consultas como:
+   │  ├─ "Muéstrame escaneos entre 01-Nov y 30-Nov"
+   │  ├─ "Compara Octubre vs Noviembre"
+   │  └─ "¿Qué host tiene más problemas HIGH?"
+   └─ Histórico ilimitado para tendencias
+
+5. REPORTES (report.py)
+   ├─ CSV: Tabla Excel con todos los hallazgos
+   ├─ PDF: Reporte ejecutivo con:
+   │  ├─ Resumen de severidades (HIGH: 5, MEDIUM: 12, LOW: 3)
+   │  ├─ Gráfico de tendencias (últimos 30 días)
+   │  ├─ Gráfico de pastel (distribución de severidades)
+   │  └─ Top 10 hallazgos más críticos
+   └─ PDF Comparativo: Compara dos períodos con deltas
+
+6. INTERFAZ GRÁFICA (ver_reporte.py)
+   ├─ Menú para ejecutar escaneos
+   ├─ Visualizar reportes generados
+   ├─ Ver estadísticas de la BD
+   └─ Generar comparativas por fechas
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONFIGURACIÓN INICIAL (SOLO UNA VEZ)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PASO 1: Instalar NMAP
+   ▸ Descargar: https://nmap.org/download.html
+   ▸ Instalar en: C:\Program Files (x86)\Nmap\
+   ▸ Verificar: Abrir CMD y escribir "nmap --version"
+
+PASO 2: Verificar Entorno Virtual Python
+   ▸ Ya tienes .venv creado
+   ▸ Dependencias instaladas:
+     - python-nmap (para escaneos)
+     - SQLAlchemy (base de datos)
+     - matplotlib (gráficos)
+     - reportlab (PDFs)
+     - tkcalendar (selector de fechas)
+
+PASO 3: Configurar Targets (¿Qué escanear?)
+   ▸ Abrir: config/targets.yaml
+   ▸ Ejemplo:
+
+     targets:
+       - cidr: "192.168.1.0/24"    # Toda tu red local
+         env: "oficina"
+       - host: "192.168.1.100"     # Un servidor específico
+         env: "servidor-web"
+
+   ▸ CIDR = rango de IPs (192.168.1.1 a 192.168.1.254)
+   ▸ Host = IP individual
+
+PASO 4: Configurar Reglas (¿Qué es peligroso?)
+   ▸ Abrir: config/rules.yaml
+   ▸ Ejemplo:
+
+     deny_ports: [21, 23, 3389]   # FTP, Telnet, RDP prohibidos
+     
+     min_versions:
+       ssh: "OpenSSH_8.0"          # Versión mínima aceptable
+     
+     tls:
+       forbid_protocols: 
+         - "SSLv3"                 # Protocolos obsoletos
+         - "TLS1.0"
+         - "TLS1.1"
+
+   ▸ Si detecta estos problemas → Marca como HIGH/MEDIUM
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USO DIARIO - MÉTODO 3: APLICACIÓN UNIFICADA (RECOMENDADO ⭐⭐⭐)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 NUEVO: Todo en un solo archivo - bluebot_unified.py
+
+1. MENÚ INTERACTIVO (Recomendado para principiantes)
+   ▸ Ejecutar: python bluebot_unified.py
+   ▸ Seleccionar opción:
+     [1] 🔍 Ejecutar Escaneo de Red
+     [2] 🌐 Iniciar Dashboard Web
+     [3] 🚀 Escanear y luego Iniciar Dashboard
+     [4] ❌ Salir
+
+2. LÍNEA DE COMANDOS (Para usuarios avanzados)
+   ▸ Solo escaneo:
+     python bluebot_unified.py --scan
+   
+   ▸ Solo dashboard:
+     python bluebot_unified.py --dashboard
+   
+   ▸ Escaneo + Dashboard automático:
+     python bluebot_unified.py --scan-and-serve
+   
+   ▸ Dashboard en otro puerto:
+     python bluebot_unified.py -d --port 8080
+   
+   ▸ Ver ayuda completa:
+     python bluebot_unified.py --help
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USO DIARIO - MÉTODO 4: DASHBOARD WEB SEPARADO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. INICIAR EL DASHBOARD
+   ▸ Abrir PowerShell en la carpeta del proyecto
+   ▸ Ejecutar: python dashboard_web.py
+   ▸ Esperar mensaje:
+     ======================================================================
+       BlueTeamBot Dashboard Web - Iniciando...
+     ======================================================================
+       Accede desde: http://localhost:5000
+       Presiona Ctrl+C para detener
+     ======================================================================
+     * Running on http://127.0.0.1:5000
+     * Running on http://192.168.0.101:5000
+   
+   NOTA: Si no tienes python en PATH, usa la ruta completa:
+         ..\.venv\Scripts\python.exe dashboard_web.py
+
+2. ABRIR EN NAVEGADOR
+   ▸ Abrir Chrome/Firefox/Edge
+   ▸ Ir a: http://localhost:5000
+   ▸ También funciona desde otros dispositivos en red: http://IP-SERVIDOR:5000
+
+3. PÁGINA PRINCIPAL (Dashboard)
+   ├─ Tarjetas con resumen:
+   │  ├─ Total Escaneos
+   │  ├─ Total Hallazgos
+   │  ├─ Severidad HIGH (críticos)
+   │  └─ Escaneos recientes (últimos 7 días)
+   │
+   ├─ Gráfico de tendencias (líneas):
+   │  └─ Evolución últimos 30 días por severidad
+   │
+   ├─ Gráfico de pastel:
+   │  └─ Distribución actual HIGH/MEDIUM/LOW
+   │
+   └─ Botones de acceso rápido a todas las secciones
+
+4. ESTADÍSTICAS (/estadisticas)
+   ▸ Menú → Estadísticas
+   ▸ Muestra:
+     - Tabla detallada con totales
+     - Cards grandes por severidad
+     - Números históricos completos
+
+5. TENDENCIAS (/tendencias)
+   ▸ Menú → Tendencias
+   ▸ Selector de período (7, 30, 60, 90 días)
+   ▸ Gráfico global de evolución
+   ▸ Gráficos individuales por cada host detectado
+   ▸ Permite identificar:
+     - ¿Qué host está empeorando?
+     - ¿Las medidas correctivas funcionaron?
+     - Patrones temporales
+
+6. COMPARAR PERÍODOS (/comparar)
+   ▸ Menú → Comparar
+   ▸ Seleccionar fechas con calendarios:
+     - Período 1: Inicio y Fin
+     - Período 2: Inicio y Fin
+   ▸ Botón "Comparar Períodos"
+   ▸ Resultado muestra:
+     - Resumen de ambos períodos
+     - Top 5 hosts de cada período
+     - Deltas (+/-) entre períodos
+     - Alerta visual:
+       * Verde = Mejora (menos hallazgos)
+       * Rojo = Empeoramiento (más hallazgos)
+       * Gris = Sin cambios
+
+7. HISTORIAL DE ESCANEOS (/scans)
+   ▸ Menú → Historial
+   ▸ Tabla con todos los escaneos:
+     - ID, Fecha/Hora, Timestamp, Total Hallazgos
+   ▸ Filtro por período (7, 30, 60, 90 días)
+   ▸ Botón "Ver Detalles" en cada escaneo:
+     - Abre modal con tabla completa
+     - Muestra todos los findings
+     - Host, Puerto, Servicio, Severidad, Razones
+
+8. VENTAJAS DEL DASHBOARD WEB
+   ✓ Acceso desde cualquier dispositivo en red
+   ✓ Visualizaciones interactivas en tiempo real
+   ✓ No requiere instalar software en cliente
+   ✓ Gráficos dinámicos con zoom y hover
+   ✓ Filtros y búsquedas instantáneas
+   ✓ Ideal para presentaciones a equipos
+   ✓ Actualización automática de datos
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USO DIARIO - MÉTODO 1: DOBLE CLIC (MÁS FÁCIL)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Hacer doble clic en: ejecutar.bat
+
+2. El programa:
+   ├─ Escanea la red (tarda 2-5 min según tamaño)
+   ├─ Evalúa contra reglas
+   ├─ Guarda en BD
+   ├─ Genera CSV y PDF
+   └─ Muestra rutas de archivos creados
+
+3. Resultados en:
+   ├─ data/reports/findings_TIMESTAMP.csv
+   └─ data/reports/report_TIMESTAMP.pdf
+
+4. Presionar ENTER para cerrar
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USO DIARIO - MÉTODO 2: INTERFAZ GRÁFICA (RECOMENDADO)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ABRIR LA GUI
+   ▸ Doble clic en PowerShell
+   ▸ Escribir: ..\.venv\Scripts\python.exe ver_reporte.py
+   ▸ O crear acceso directo
+
+2. EJECUTAR ESCANEO
+   ▸ Menú → Archivo → Ejecutar Escaneo
+   ▸ O botón "Ejecutar Escaneo"
+   ▸ Esperar a que termine (barra de estado muestra progreso)
+   ▸ Ventana emergente confirma éxito
+
+3. VER REPORTES
+   ▸ La lista muestra todos los PDFs generados (más recientes arriba)
+   ▸ Seleccionar uno y clic en "Abrir PDF Seleccionado"
+   ▸ Se abre con tu lector PDF predeterminado
+
+4. VER CSV (DATOS TABULARES)
+   ▸ Botón "Abrir CSV más reciente"
+   ▸ Se abre con Excel o editor de CSV
+
+5. VER ESTADÍSTICAS
+   ▸ Menú → Análisis → Ver Estadísticas
+   ▸ Muestra:
+     - Total de escaneos realizados
+     - Total de hallazgos históricos
+     - Escaneos últimos 7 días
+     - Distribución de severidades (HIGH/MEDIUM/LOW)
+
+6. COMPARAR PERÍODOS
+   ▸ Menú → Análisis → Generar Comparativa por Fechas
+   ▸ Ventana nueva aparece:
+     
+     [Período 1]
+     Desde: [calendario] → Ej: 01-Nov-2025
+     Hasta: [calendario] → Ej: 15-Nov-2025
+     
+     [Período 2]
+     Desde: [calendario] → Ej: 16-Nov-2025
+     Hasta: [calendario] → Ej: 30-Nov-2025
+     
+     [Generar Reporte]
+   
+   ▸ Clic en "Generar Reporte"
+   ▸ PDF comparativo se genera automáticamente
+   ▸ Muestra:
+     - Totales de cada período
+     - Cambios (+/-) entre períodos
+     - Top 5 hosts más problemáticos
+     - Deltas por severidad
+
+7. EDITAR CONFIGURACIÓN
+   ▸ Menú → Configuración → Editar targets.yaml
+     → Se abre con Bloc de notas para cambiar IPs a escanear
+   
+   ▸ Menú → Configuración → Editar rules.yaml
+     → Se abre para modificar reglas de seguridad
+
+8. ABRIR CARPETA DE REPORTES
+   ▸ Botón "Abrir carpeta de reportes"
+   ▸ Abre data/reports/ en explorador de Windows
+   ▸ Puedes copiar/compartir archivos desde ahí
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INTERPRETAR REPORTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+═════════════════════════════════════════════════════════════════════════
+ARCHIVO CSV (findings_TIMESTAMP.csv)
+═════════════════════════════════════════════════════════════════════════
+
+Columnas:
+  host        → IP del dispositivo (ej: 192.168.1.50)
+  port        → Puerto abierto (ej: 23 = Telnet)
+  service     → Tipo de servicio (ssh, http, ftp, etc.)
+  product     → Software específico (OpenSSH, Apache, etc.)
+  version     → Versión del software (7.4p1, 2.4.41, etc.)
+  env         → Entorno (lab, producción, etc.)
+  severity    → Criticidad (HIGH, MEDIUM, LOW)
+  reasons     → Por qué es problema (["Puerto prohibido 23"])
+  status      → NEW (nuevo), CHANGED (modificado), SAME (igual)
+
+Ejemplo de fila:
+  192.168.1.100, 23, telnet, , , lab, HIGH, ["Puerto prohibido 23"], NEW
+
+Qué hacer:
+  ✓ HIGH → Arreglar INMEDIATAMENTE (puertos peligrosos)
+  ✓ MEDIUM → Arreglar esta semana (versiones viejas)
+  ✓ LOW → Planificar corrección
+  ✓ Filtrar por host para ver todos los problemas de un servidor
+
+
+═════════════════════════════════════════════════════════════════════════
+ARCHIVO PDF (report_TIMESTAMP.pdf)
+═════════════════════════════════════════════════════════════════════════
+
+Página 1 - RESUMEN EJECUTIVO:
+  ┌─────────────────────────────────────────┐
+  │ Blue Team Bot – Resumen 1755668195      │
+  ├─────────────────────────────────────────┤
+  │ Resumen Ejecutivo                       │
+  │ Altos: 3  Medios: 8  Bajos: 2           │
+  ├─────────────────────────────────────────┤
+  │ [Gráfico de Tendencias - Últimos 30d]   │
+  │ Líneas: HIGH (roja), MEDIUM (naranja),  │
+  │         LOW (amarilla)                  │
+  ├─────────────────────────────────────────┤
+  │ [Gráfico de Pastel]                     │
+  │ Distribución actual de severidades      │
+  ├─────────────────────────────────────────┤
+  │ Top Hallazgos                           │
+  │ 1. 192.168.1.50:23 [HIGH] - Puerto...   │
+  │ 2. 192.168.1.51:21 [HIGH] - Puerto...   │
+  │ ...                                     │
+  └─────────────────────────────────────────┘
+
+Cómo leerlo:
+  ▸ Resumen ejecutivo → Para mostrar a jefes/gerencia
+  ▸ Tendencias → ¿Estamos mejorando o empeorando?
+  ▸ Pastel → Proporción de problemas
+  ▸ Top 10 → Priorizar correcciones
+
+
+═════════════════════════════════════════════════════════════════════════
+PDF COMPARATIVO (comparison_TIMESTAMP.pdf)
+═════════════════════════════════════════════════════════════════════════
+
+  ┌─────────────────────────────────────────┐
+  │ Reporte Comparativo                     │
+  ├─────────────────────────────────────────┤
+  │ Período 1: 2025-11-01 a 2025-11-15      │
+  │ Total hallazgos: 15                     │
+  │ HIGH: 5  MEDIUM: 8  LOW: 2              │
+  ├─────────────────────────────────────────┤
+  │ Período 2: 2025-11-16 a 2025-11-30      │
+  │ Total hallazgos: 12                     │
+  │ HIGH: 3  MEDIUM: 7  LOW: 2              │
+  ├─────────────────────────────────────────┤
+  │ Cambios (Período 2 vs Período 1)        │
+  │ Total: -3 (MEJORA)                      │
+  │ HIGH: -2  MEDIUM: -1  LOW: 0            │
+  ├─────────────────────────────────────────┤
+  │ Top 5 Hosts (Período 2)                 │
+  │ 192.168.1.100: 5 hallazgos              │
+  │ 192.168.1.50: 3 hallazgos               │
+  │ ...                                     │
+  └─────────────────────────────────────────┘
+
+Interpretación:
+  ✓ Números negativos (-3) = BUENAS NOTICIAS (menos problemas)
+  ✓ Números positivos (+5) = MALAS NOTICIAS (más problemas)
+  ✓ Usar para reportes mensuales/trimestrales
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CASOS DE USO REALES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CASO 1: Auditoría Semanal
+  1. Lunes a las 9am: Ejecutar escaneo
+  2. Abrir PDF generado
+  3. Si hay HIGH nuevos → Crear tickets para sysadmins
+  4. Si hay MEDIUM → Planificar para la semana
+  5. Archivar PDF en carpeta compartida
+
+CASO 2: Cumplimiento Regulatorio
+  1. Configurar rules.yaml según estándar (PCI-DSS, ISO 27001, etc.)
+  2. Escaneo mensual
+  3. Generar comparativa mes actual vs mes anterior
+  4. Adjuntar PDF comparativo a reporte de compliance
+  5. Demostrar mejora continua
+
+CASO 3: Post-Incidente
+  1. Después de ataque/brecha de seguridad
+  2. Ejecutar escaneo inmediatamente
+  3. Comparar contra último escaneo "bueno"
+  4. Identificar qué cambió (puertos nuevos, servicios nuevos)
+  5. Remediar y validar con nuevo escaneo
+
+CASO 4: Hardening de Servidores
+  1. Escaneo inicial (baseline)
+  2. Aplicar configuraciones de seguridad
+  3. Escaneo post-hardening
+  4. Comparativa antes/después
+  5. Validar que HIGH bajaron a cero
+
+CASO 5: Monitoreo Continuo
+  1. Programar escaneos automáticos (ejecutar.bat en Programador de Tareas)
+  2. Revisar PDFs diariamente
+  3. Usar "Ver Estadísticas" para tendencias
+  4. Alertar si HIGH aumenta semana a semana
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ESTRUCTURA DE ARCHIVOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+bluebot-lite/
+│
+├─ config/
+│  ├─ targets.yaml         → QUÉ escanear (IPs, rangos)
+│  └─ rules.yaml           → QUÉ reglas aplicar
+│
+├─ data/
+│  ├─ baseline.json        → Último escaneo (para comparar)
+│  ├─ bluebot.db          → Base de datos SQLite (histórico)
+│  ├─ reports/             → PDFs y CSVs generados
+│  │  ├─ findings_*.csv
+│  │  ├─ report_*.pdf
+│  │  └─ comparison_*.pdf
+│  └─ runs/                → JSONs brutos de cada escaneo
+│     └─ raw_*.json
+│
+├─ src/
+│  ├─ main.py             → Orquestador principal
+│  ├─ scan.py             → Motor de escaneo (nmap)
+│  ├─ rules.py            → Evaluador de reglas
+│  ├─ diff.py             → Comparador de cambios
+│  ├─ report.py           → Generador de PDFs/CSVs
+│  ├─ utils.py            → Funciones auxiliares
+│  └─ db/
+│     ├─ models.py        → Esquema de base de datos
+│     └─ queries.py       → Consultas avanzadas
+│
+├─ templates/             → Plantillas HTML del dashboard
+│  ├─ base.html          → Plantilla base con navbar
+│  ├─ index.html         → Página principal
+│  ├─ stats.html         → Estadísticas detalladas
+│  ├─ tendencias.html    → Análisis de tendencias
+│  ├─ comparar.html      → Comparativa de períodos
+│  └─ scans.html         → Historial de escaneos
+│
+├─ static/               → Archivos estáticos del dashboard
+│  ├─ css/
+│  │  └─ style.css       → Estilos personalizados
+│  └─ js/
+│     └─ charts.js       → Utilidades para gráficos
+│
+├─ ejecutar.bat          → Script para ejecutar desde Windows
+├─ ver_reporte.py        → Interfaz gráfica (GUI Tkinter)
+├─ dashboard_web.py      → Dashboard web (Flask) ⭐NUEVO
+└─ requirements.txt      → Dependencias Python
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SOLUCIÓN DE PROBLEMAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEMA: "nmap no reconocido como comando"
+  ✓ Solución: Instalar Nmap desde https://nmap.org/download.html
+  ✓ Agregar C:\Program Files (x86)\Nmap\ al PATH de Windows
+  ✓ Reiniciar terminal
+
+PROBLEMA: "No se puede abrir archivo .db"
+  ✓ Solución: El programa lo crea automáticamente en primer escaneo
+  ✓ Si persiste: Borrar data/bluebot.db y volver a ejecutar
+
+PROBLEMA: Escaneo tarda mucho
+  ✓ Reducir rango de IPs en targets.yaml
+  ✓ Escanear solo IPs específicas en vez de CIDR completo
+  ✓ Usar -T4 (ya configurado) es el modo rápido de nmap
+
+PROBLEMA: Dashboard web no inicia
+  ✓ Verificar que Flask esté instalado:
+    ..\.venv\Scripts\pip.exe list | findstr Flask
+  ✓ Instalar si falta: ..\.venv\Scripts\pip.exe install flask
+  ✓ ERROR COMÚN: "get_statistics is an unknown import symbol"
+    → Solución: Asegúrate de tener la última versión de src/db/__init__.py
+    → La función get_statistics debe estar exportada en __all__
+  ✓ Verificar puerto 5000 no esté en uso:
+    netstat -ano | findstr :5000
+  ✓ Revisar firewall de Windows si accedes desde otra PC
+
+PROBLEMA: No se ven gráficos en dashboard
+  ✓ Verificar conexión a internet (usa CDN para Chart.js)
+  ✓ Abrir consola del navegador (F12) para ver errores
+  ✓ Verificar que existan datos en la BD (ejecutar escaneo primero)
+  ✓ Usar -T4 (ya configurado) es el modo rápido de nmap
+
+PROBLEMA: No se generan gráficos en PDF
+  ✓ Verificar que matplotlib esté instalado:
+    ..\.venv\Scripts\pip.exe list | findstr matplotlib
+  ✓ Necesitas al menos 1 escaneo previo para tendencias
+  ✓ Revisar logs en consola por errores
+
+PROBLEMA: "No se pudo guardar en BD"
+  ✓ Verificar que carpeta data/ exista
+  ✓ Verificar permisos de escritura
+  ✓ Revisar log de error específico
+
+PROBLEMA: Comparativa no muestra datos
+  ✓ Necesitas al menos 2 escaneos en los rangos seleccionados
+  ✓ Verificar fechas: deben existir escaneos en esas fechas
+  ✓ Revisar data/bluebot.db tiene registros
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AUTOMATIZACIÓN (AVANZADO)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OPCIÓN 1: Programador de Tareas de Windows
+  1. Abrir "Programador de tareas"
+  2. Crear tarea básica
+  3. Nombre: "BlueBot Escaneo Diario"
+  4. Desencadenador: Diario a las 20:00
+  5. Acción: Ejecutar programa
+     Programa: C:\ruta\a\ejecutar.bat
+  6. Finalizar
+
+OPCIÓN 2: Modo Schedule Interno
+  1. Modificar ejecutar.bat:
+     ..\.venv\Scripts\python.exe -m src.main --schedule
+  2. El programa ejecutará escaneos diarios a las 20:00
+  3. Dejar terminal abierta (minimizada)
+
+OPCIÓN 3: Docker (Para servidores Linux)
+  1. cd infra/
+  2. docker-compose up -d
+  3. Contenedor ejecuta escaneos en segundo plano
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MEJORES PRÁCTICAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ Ejecutar escaneos fuera de horario laboral (menos impacto)
+✓ Mantener historial de PDFs para auditorías
+✓ Configurar reglas según tu política de seguridad
+✓ Revisar reportes semanalmente (mínimo)
+✓ Archivar comparativas mensuales
+✓ No escanear redes externas (solo tus activos)
+✓ Validar permisos antes de escanear producción
+✓ Combinar con otras herramientas (firewalls, IDS)
+✓ Documentar excepciones (servicios legítimos en puertos raros)
+✓ Actualizar rules.yaml según nuevas amenazas
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PRÓXIMOS PASOS (EXTENSIONES FUTURAS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Dashboard Web (Flask/Chart.js) - IMPLEMENTADO
+□ Alertas por email/Slack cuando hay HIGH nuevos
+□ Integración con CVE databases (NIST NVD)
+□ Escaneo de vulnerabilidades activas (OpenVAS)
+□ Gestión de excepciones (aceptar riesgos temporales)
+□ Multi-tenancy (múltiples clientes/proyectos)
+□ API REST para integración con SIEM
+□ Exportar a formatos STIX/TAXII
+□ Autenticación y control de acceso en dashboard
+
+
+================================================================================
+CHANGELOG - NUEVAS FUNCIONALIDADES
+================================================================================
+
+VERSIÓN 2.0 (Dashboard Web) - Diciembre 2025
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✨ NUEVO: Dashboard web con Flask
+  - Interfaz moderna con Bootstrap 5
+  - Gráficos interactivos con Chart.js
+  - 5 páginas principales:
+    * Dashboard principal (tarjetas + gráficos)
+    * Estadísticas detalladas
+    * Tendencias por período
+    * Comparativas entre fechas
+    * Historial de escaneos
+
+✨ NUEVO: API REST
+  - /api/stats - Estadísticas generales
+  - /api/severity-trends?days=N - Tendencias de severidad
+  - /api/host-trends?days=N - Tendencias por host
+  - /api/scans?days=N - Lista de escaneos
+  - /api/scan/{id}/findings - Detalles de escaneo
+  - /api/compare - Comparar dos períodos
+
+✨ MEJORAS: Base de datos
+  - Queries optimizadas para dashboard
+  - Funciones de análisis temporal
+  - Soporte para rangos de fechas arbitrarios
+
+✨ MEJORAS: Visualizaciones
+  - Gráficos de líneas con tendencias
+  - Gráficos de pastel/dona
+  - Colores consistentes por severidad
+  - Tooltips informativos
+  - Responsive design
+
+VERSIÓN 1.5 (Base de Datos) - Diciembre 2025
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Base de datos SQLite para histórico
+✅ Comparativas por fechas en GUI
+✅ Gráficos en reportes PDF
+✅ Selector de fechas visual
+✅ Estadísticas en GUI
+
+
+================================================================================
+SOPORTE Y CONTACTO
+================================================================================
+
+Documentación adicional: README.md
+Configuración avanzada: Editar archivos YAML directamente
+Logs de errores: Revisar salida de consola
+Base de datos: data/bluebot.db (SQLite, abrir con DB Browser)
+
+================================================================================
+                          FIN DEL MANUAL
+================================================================================

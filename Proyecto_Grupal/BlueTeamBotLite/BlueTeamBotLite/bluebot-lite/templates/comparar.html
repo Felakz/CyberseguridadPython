@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Comparar Períodos - BlueTeamBot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-arrow-left-right text-primary"></i> Comparar Períodos
+        </h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5>Período 1</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="r1Start" class="form-label">Fecha inicio:</label>
+                    <input type="date" class="form-control" id="r1Start">
+                </div>
+                <div class="mb-3">
+                    <label for="r1End" class="form-label">Fecha fin:</label>
+                    <input type="date" class="form-control" id="r1End">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5>Período 2</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="r2Start" class="form-label">Fecha inicio:</label>
+                    <input type="date" class="form-control" id="r2Start">
+                </div>
+                <div class="mb-3">
+                    <label for="r2End" class="form-label">Fecha fin:</label>
+                    <input type="date" class="form-control" id="r2End">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12 text-center">
+        <button class="btn btn-primary btn-lg" onclick="compareRanges()">
+            <i class="bi bi-search"></i> Comparar Períodos
+        </button>
+    </div>
+</div>
+
+<div id="resultsContainer"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Establecer fechas por defecto
+    const today = new Date();
+    const monthAgo = new Date(today);
+    monthAgo.setDate(monthAgo.getDate() - 30);
+    const twoWeeksAgo = new Date(today);
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 15);
+    
+    document.getElementById('r1Start').value = monthAgo.toISOString().split('T')[0];
+    document.getElementById('r1End').value = twoWeeksAgo.toISOString().split('T')[0];
+    document.getElementById('r2Start').value = twoWeeksAgo.toISOString().split('T')[0];
+    document.getElementById('r2End').value = today.toISOString().split('T')[0];
+    
+    function compareRanges() {
+        const r1Start = document.getElementById('r1Start').value + 'T00:00:00';
+        const r1End = document.getElementById('r1End').value + 'T23:59:59';
+        const r2Start = document.getElementById('r2Start').value + 'T00:00:00';
+        const r2End = document.getElementById('r2End').value + 'T23:59:59';
+        
+        fetch('/api/compare', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                range1_start: r1Start,
+                range1_end: r1End,
+                range2_start: r2Start,
+                range2_end: r2End
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            const container = document.getElementById('resultsContainer');
+            const delta = data.delta;
+            const deltaClass = delta.total < 0 ? 'success' : (delta.total > 0 ? 'danger' : 'secondary');
+            const deltaIcon = delta.total < 0 ? 'arrow-down-circle' : (delta.total > 0 ? 'arrow-up-circle' : 'dash-circle');
+            
+            container.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h5>Período 1: ${data.range1.start} a ${data.range1.end}</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table">
+                                    <tr>
+                                        <th>Total Hallazgos:</th>
+                                        <td class="text-end"><span class="badge bg-secondary fs-5">${data.range1.analysis.total}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <th>HIGH:</th>
+                                        <td class="text-end"><span class="badge bg-danger fs-5">${data.range1.analysis.severity.HIGH}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <th>MEDIUM:</th>
+                                        <td class="text-end"><span class="badge bg-warning fs-5">${data.range1.analysis.severity.MEDIUM}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <th>LOW:</th>
+                                        <td class="text-end"><span class="badge bg-success fs-5">${data.range1.analysis.severity.LOW}</span></td>
+                                    </tr>
+                                </table>
+                                
+                                <h6 class="mt-3">Top 5 Hosts:</h6>
+                                <ul class="list-group">
+                                    ${data.range1.analysis.top_hosts.map(([host, count]) => `
+                                        <li class="list-group-item d-flex justify-content-between">
+                                            <span>${host}</span>
+                                            <span class="badge bg-primary rounded-pill">${count}</span>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-warning text-dark">
+                                <h5>Período 2: ${data.range2.start} a ${data.range2.end}</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table">
+                                    <tr>
+                                        <th>Total Hallazgos:</th>
+                                        <td class="text-end"><span class="badge bg-secondary fs-5">${data.range2.analysis.total}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <th>HIGH:</th>
+                                        <td class="text-end"><span class="badge bg-danger fs-5">${data.range2.analysis.severity.HIGH}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <th>MEDIUM:</th>
+                                        <td class="text-end"><span class="badge bg-warning fs-5">${data.range2.analysis.severity.MEDIUM}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <th>LOW:</th>
+                                        <td class="text-end"><span class="badge bg-success fs-5">${data.range2.analysis.severity.LOW}</span></td>
+                                    </tr>
+                                </table>
+                                
+                                <h6 class="mt-3">Top 5 Hosts:</h6>
+                                <ul class="list-group">
+                                    ${data.range2.analysis.top_hosts.map(([host, count]) => `
+                                        <li class="list-group-item d-flex justify-content-between">
+                                            <span>${host}</span>
+                                            <span class="badge bg-primary rounded-pill">${count}</span>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card border-${deltaClass}">
+                            <div class="card-header bg-${deltaClass} text-white">
+                                <h5><i class="bi bi-${deltaIcon}"></i> Cambios (Período 2 vs Período 1)</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-striped">
+                                    <tr>
+                                        <th>Total:</th>
+                                        <td class="text-end"><span class="badge bg-${deltaClass} fs-4">${delta.total > 0 ? '+' : ''}${delta.total}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <th>HIGH:</th>
+                                        <td class="text-end"><span class="badge ${delta.severity.HIGH > 0 ? 'bg-danger' : 'bg-success'} fs-4">${delta.severity.HIGH > 0 ? '+' : ''}${delta.severity.HIGH}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <th>MEDIUM:</th>
+                                        <td class="text-end"><span class="badge ${delta.severity.MEDIUM > 0 ? 'bg-warning' : 'bg-success'} fs-4">${delta.severity.MEDIUM > 0 ? '+' : ''}${delta.severity.MEDIUM}</span></td>
+                                    </tr>
+                                    <tr>
+                                        <th>LOW:</th>
+                                        <td class="text-end"><span class="badge ${delta.severity.LOW > 0 ? 'bg-info' : 'bg-success'} fs-4">${delta.severity.LOW > 0 ? '+' : ''}${delta.severity.LOW}</span></td>
+                                    </tr>
+                                </table>
+                                
+                                <div class="alert alert-${deltaClass} mt-3">
+                                    ${delta.total < 0 ? 
+                                        '<i class="bi bi-check-circle"></i> <strong>¡Mejora!</strong> Los hallazgos han disminuido.' :
+                                        (delta.total > 0 ? 
+                                            '<i class="bi bi-exclamation-triangle"></i> <strong>Atención:</strong> Los hallazgos han aumentado.' :
+                                            '<i class="bi bi-info-circle"></i> No hay cambios significativos.')
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+</script>
+{% endblock %}

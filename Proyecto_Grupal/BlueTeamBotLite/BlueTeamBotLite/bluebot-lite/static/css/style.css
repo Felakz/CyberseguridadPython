@@ -1,0 +1,133 @@
+/* BlueTeamBot Custom Styles */
+
+:root {
+    --primary-color: #0d6efd;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --success-color: #198754;
+    --info-color: #0dcaf0;
+}
+
+body {
+    background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.3rem;
+}
+
+.card {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: none;
+    margin-bottom: 1.5rem;
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.card-header {
+    font-weight: 600;
+    border-bottom: 2px solid rgba(0,0,0,0.1);
+}
+
+.display-1, .display-4 {
+    font-weight: bold;
+}
+
+.badge {
+    padding: 0.5em 0.8em;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.btn {
+    transition: all 0.2s;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+footer {
+    padding: 2rem 0;
+    margin-top: 3rem;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Gráficos responsivos */
+canvas {
+    max-width: 100%;
+    height: auto !important;
+}
+
+/* Alertas personalizadas */
+.alert {
+    border-left: 4px solid;
+}
+
+.alert-success {
+    border-left-color: var(--success-color);
+}
+
+.alert-danger {
+    border-left-color: var(--danger-color);
+}
+
+.alert-warning {
+    border-left-color: var(--warning-color);
+}
+
+.alert-info {
+    border-left-color: var(--info-color);
+}
+
+/* Loading spinner */
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Modal mejorado */
+.modal-xl {
+    max-width: 95%;
+}
+
+/* Tablas responsivas */
+.table-responsive {
+    border-radius: 0.25rem;
+}
+
+/* Badges mejorados */
+.fs-5 {
+    font-size: 1.25rem !important;
+}
+
+.fs-4 {
+    font-size: 1.5rem !important;
+}
+
+/* Cards con borde de severidad */
+.border-danger {
+    border-left: 5px solid var(--danger-color) !important;
+}
+
+.border-warning {
+    border-left: 5px solid var(--warning-color) !important;
+}
+
+.border-success {
+    border-left: 5px solid var(--success-color) !important;
+}
+
+.border-info {
+    border-left: 5px solid var(--info-color) !important;
+}
